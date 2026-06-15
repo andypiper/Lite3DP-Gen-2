@@ -1,0 +1,23 @@
+idf_component_register(
+    SRCS
+        "app_main.cpp"
+        "motor.cpp"
+        "uv_led.cpp"
+        "prefs.cpp"
+        "slicer.cpp"
+        "print_core.cpp"
+        "ui.cpp"
+    INCLUDE_DIRS
+        "."
+        # Asset headers from the original Touch v1-1 firmware
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../LITE3DP-G2-TOUCH-v1-1"
+    REQUIRES
+        espressif__arduino-esp32
+        tft_espi
+        pngdec
+        sdfat
+        xpt2046
+        driver
+        esp_timer
+        nvs_flash
+)
