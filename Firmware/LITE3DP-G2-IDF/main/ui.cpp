@@ -9,8 +9,10 @@
 #include "shared.h"
 #include "pins.h"
 #include "prefs.h"
+#include "params.h"
 #include "slicer.h"
 #include "print_core.h"
+#include "wifi_mgr.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
@@ -77,6 +79,8 @@ typedef enum {
     SCR_FILE_SD     = 42,
     SCR_TEST_MENU   = 51,
     SCR_KEYCHAIN    = 52,
+    // WiFi settings
+    SCR_WIFI        = 60,
     // Utilities
     SCR_UTIL_MENU   = 201,
     SCR_CLEAN_EXP   = 2010,
@@ -172,6 +176,49 @@ static void scr_settings() {
 
 static void scr_utilities() {
     draw_flash_png(menuutilities, sizeof(menuutilities));
+}
+
+static void scr_wifi() {
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.drawCentreString("WIFI",         240, 20, 4);
+
+    char ssid[33] = ""; wifi_get_ssid(ssid, sizeof(ssid));
+    char ip[16]   = ""; wifi_get_ip(ip,   sizeof(ip));
+
+    switch (wifi_get_state()) {
+        case WIFI_STATE_CONNECTED:
+            tft.setTextColor(TFT_GREEN, TFT_BLACK);
+            tft.drawCentreString("CONNECTED",    240, 80, 4);
+            tft.setTextColor(TFT_WHITE, TFT_BLACK);
+            tft.drawCentreString(ssid,           240, 125, 2);
+            tft.drawCentreString(ip,             240, 155, 4);
+            tft.drawCentreString("lite3dp-g2.local", 240, 200, 2);
+            break;
+        case WIFI_STATE_CONNECTING:
+            tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+            tft.drawCentreString("CONNECTING...", 240, 80, 4);
+            tft.setTextColor(TFT_WHITE, TFT_BLACK);
+            tft.drawCentreString(ssid,            240, 125, 2);
+            break;
+        case WIFI_STATE_AP_MODE:
+            tft.setTextColor(TFT_CYAN, TFT_BLACK);
+            tft.drawCentreString("SETUP MODE",   240, 80, 4);
+            tft.setTextColor(TFT_WHITE, TFT_BLACK);
+            tft.drawCentreString("Connect to:",  240, 120, 2);
+            tft.drawCentreString("Lite3DP-G2",   240, 145, 4);
+            tft.drawCentreString("Then open:",   240, 190, 2);
+            tft.drawCentreString("192.168.4.1",  240, 215, 2);
+            break;
+        default:
+            tft.setTextColor(TFT_RED, TFT_BLACK);
+            tft.drawCentreString("DISCONNECTED", 240, 80, 4);
+            break;
+    }
+
+    // BACK hint at bottom
+    tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    tft.drawCentreString("BACK = clear credentials", 240, 285, 2);
 }
 
 static void scr_tmpl1() { draw_flash_png(template1,   sizeof(template1));   }
@@ -469,6 +516,10 @@ static void on_next() {
             tft.drawCentreString("FACTORY TEST",     240, 232, 4);
             scr_tmpl2a();
             break;
+        case SCR_WIFI:
+            // NEXT refreshes the WiFi status display
+            scr_wifi();
+            break;
         case SCR_FILE_SEL:
             refresh_layer_count();
             s_screen = SCR_PARAM_SEL; scr_param_sel(); break;
@@ -620,6 +671,11 @@ static void on_back() {
         case SCR_CONF_2:      s_screen=SCR_CONF_1;     scr_conf1();      break;
         case SCR_DETAILS:     s_screen=SCR_CONF_2;     scr_conf2();      break;
         case SCR_PRINTING:    s_screen=SCR_MAIN;        scr_main();       break;
+        case SCR_WIFI:
+            // BACK from WiFi screen clears saved credentials → AP mode
+            wifi_clear_credentials();
+            s_screen=SCR_WIFI; scr_wifi();
+            break;
         case SCR_LEVEL_MENU:  s_screen=SCR_MAIN;        scr_main();       break;
         case SCR_LEVEL_WAIT:  s_screen=SCR_LEVEL_MENU;
                               scr_tmpl2a();
@@ -661,8 +717,10 @@ static void on_back() {
 
 static void on_up() {
     switch (s_screen) {
-        case SCR_MAIN:     s_screen=SCR_SETTINGS; scr_settings(); vTaskDelay(pdMS_TO_TICKS(100)); return;
-        case SCR_SETTINGS: s_screen=SCR_MAIN;     scr_main();     vTaskDelay(pdMS_TO_TICKS(100)); return;
+        case SCR_MAIN:      s_screen=SCR_SETTINGS;  scr_settings();  vTaskDelay(pdMS_TO_TICKS(100)); return;
+        case SCR_SETTINGS:  s_screen=SCR_MAIN;      scr_main();      vTaskDelay(pdMS_TO_TICKS(100)); return;
+        case SCR_UTILITIES: s_screen=SCR_SETTINGS;  scr_settings();  vTaskDelay(pdMS_TO_TICKS(100)); return;
+        case SCR_WIFI:      s_screen=SCR_UTILITIES; scr_utilities(); vTaskDelay(pdMS_TO_TICKS(100)); return;
         case SCR_FILE_SEL:
             if (s_folder_idx > 0) { s_folder_idx--; scr_file_sel(); }
             vTaskDelay(pdMS_TO_TICKS(200)); return;
@@ -702,7 +760,8 @@ static void on_up() {
 static void on_down() {
     switch (s_screen) {
         case SCR_SETTINGS:  s_screen=SCR_UTILITIES; scr_utilities(); vTaskDelay(pdMS_TO_TICKS(100)); return;
-        case SCR_UTILITIES: s_screen=SCR_SETTINGS;  scr_settings();  vTaskDelay(pdMS_TO_TICKS(100)); return;
+        case SCR_UTILITIES: s_screen=SCR_WIFI;      scr_wifi();      vTaskDelay(pdMS_TO_TICKS(100)); return;
+        case SCR_WIFI:      s_screen=SCR_SETTINGS;  scr_settings();  vTaskDelay(pdMS_TO_TICKS(100)); return;
         case SCR_FILE_SEL:
             if (s_folder_idx + 1 < s_folder_count) { s_folder_idx++; scr_file_sel(); }
             vTaskDelay(pdMS_TO_TICKS(200)); return;

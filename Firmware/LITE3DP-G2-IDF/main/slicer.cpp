@@ -19,7 +19,7 @@ static bool file_exists(const char *path) {
 // ── Public API ─────────────────────────────────────────────────────────────
 
 slicer_type_t slicer_detect(const char *folder) {
-    char path[64];
+    char path[80];   // Prusa needs up to 67 bytes with a 24-char folder name
 
     // Prusa: foldersel00000.png
     snprintf(path, sizeof(path), "%s/%s/%s00000.png", ROOT, folder, folder);

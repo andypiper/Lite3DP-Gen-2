@@ -153,6 +153,7 @@ static void motor_home_blocking(int period_us) {
 }
 
 static void do_calibrate(const print_params_t *p) {
+    g_print_state = PRINT_STATE_HOMING;
     if (!motor_endstop()) {
         motor_home_blocking(speed_to_period_us(p->retractSpeed));
     }
@@ -188,11 +189,12 @@ static bool check_pause(float actual_height_mm, const print_params_t *p) {
             speed_to_period_us(p->liftSpeed));
     }
 
+    g_print_state = PRINT_STATE_PAUSED;
     send_status(STATUS_PAUSED, 0, 0, 0);
 
     // Wait for RESUME or CANCEL
     while (xQueueReceive(g_print_cmd_queue, &cmd, portMAX_DELAY) == pdTRUE) {
-        if (cmd.type == CMD_PRINT_RESUME) break;
+        if (cmd.type == CMD_PRINT_RESUME) { g_print_state = PRINT_STATE_PRINTING; break; }
         if (cmd.type == CMD_PRINT_CANCEL) {
             send_status(STATUS_PRINT_COMPLETE, 0, 0, 0);
             // Return to avoid continuing the loop; caller checks return value
@@ -234,7 +236,7 @@ static void display_layer(const char *folder, int layer_idx,
     }
 
     // Normal SD print
-    char path[64];
+    char path[80];   // Prusa with 24-char folder needs 67 bytes
     slicer_layer_path(path, sizeof(path), folder, layer_idx, slicer);
     display_png_file(path);
 }
@@ -257,6 +259,10 @@ static void do_print(const print_cmd_t *cmd) {
         default:  total_layers = raw;          break;
     }
     if (total_layers <= 0) return;
+
+    g_print_state   = PRINT_STATE_PRINTING;
+    g_layer_current = 0;
+    g_layer_total   = total_layers;
 
     int first  = (cmd->start.print_mode != 0) ? 5 : p.firstLayers;
     int trans  = (cmd->start.print_mode != 0) ? 0 : p.traLayers;
@@ -324,6 +330,7 @@ static void do_print(const print_cmd_t *cmd) {
         tft.setRotation(3);
         g_xpos = 27; g_ypos = 0;
         uint32_t elapsed = xTaskGetTickCount() * portTICK_PERIOD_MS - t_start;
+        g_layer_current = l + 1;
         send_status(STATUS_LAYER_DONE, l + 1, total_layers, elapsed);
 
         // ── Pause / cancel check ───────────────────────────────────────────
@@ -346,6 +353,7 @@ static void do_print(const print_cmd_t *cmd) {
     }
 
     uint32_t elapsed = xTaskGetTickCount() * portTICK_PERIOD_MS - t_start;
+    g_print_state = PRINT_STATE_IDLE;
     send_status(STATUS_PRINT_COMPLETE, total_layers, total_layers, elapsed);
 }
 

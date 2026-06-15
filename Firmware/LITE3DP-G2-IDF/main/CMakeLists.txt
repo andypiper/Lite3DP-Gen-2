@@ -4,9 +4,12 @@ idf_component_register(
         "motor.cpp"
         "uv_led.cpp"
         "prefs.cpp"
+        "params.cpp"
         "slicer.cpp"
         "print_core.cpp"
         "ui.cpp"
+        "wifi_mgr.cpp"
+        "http_server.cpp"
     INCLUDE_DIRS
         "."
         # Asset headers from the original Touch v1-1 firmware
@@ -20,4 +23,9 @@ idf_component_register(
         driver
         esp_timer
         nvs_flash
+        esp_wifi
+        esp_event
+        esp_netif
+        esp_http_server
+        mdns
 )

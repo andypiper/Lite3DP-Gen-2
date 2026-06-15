@@ -90,6 +90,29 @@ typedef struct {
     };
 } print_status_t;
 
+// ── WiFi state (updated by wifi_mgr, read by UI and HTTP server) ─────────
+typedef enum {
+    WIFI_STATE_DISCONNECTED = 0,
+    WIFI_STATE_CONNECTING,
+    WIFI_STATE_CONNECTED,
+    WIFI_STATE_AP_MODE,
+} wifi_state_t;
+
+// ── Print state (updated by print_task, read by HTTP server) ─────────────
+typedef enum {
+    PRINT_STATE_IDLE = 0,
+    PRINT_STATE_HOMING,
+    PRINT_STATE_PRINTING,
+    PRINT_STATE_PAUSED,
+    PRINT_STATE_ERROR,
+} print_state_t;
+
+// Written by print_task, read-only for all other tasks.
+// Declared volatile — no mutex needed for simple status reads.
+extern volatile print_state_t g_print_state;
+extern volatile int           g_layer_current;
+extern volatile int           g_layer_total;
+
 // ── Inter-task queues (defined in app_main.cpp) ───────────────────────────
 extern QueueHandle_t g_motor_cmd_queue;
 extern QueueHandle_t g_motor_done_queue;

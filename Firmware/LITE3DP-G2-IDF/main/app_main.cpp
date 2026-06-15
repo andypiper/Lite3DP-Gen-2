@@ -3,28 +3,35 @@
 #include "uv_led.h"
 #include "print_core.h"
 #include "ui.h"
+#include "wifi_mgr.h"
+#include "http_server.h"
 #include <Arduino.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "nvs_flash.h"
 
-// Queue and global state definitions (declared extern in shared.h)
+// ── Globals defined here, declared extern in shared.h ────────────────────
+
 QueueHandle_t g_motor_cmd_queue;
 QueueHandle_t g_motor_done_queue;
 QueueHandle_t g_print_cmd_queue;
 QueueHandle_t g_print_status_queue;
 print_params_t g_params;
 
+volatile print_state_t g_print_state   = PRINT_STATE_IDLE;
+volatile int           g_layer_current = 0;
+volatile int           g_layer_total   = 0;
+
 extern "C" void app_main(void) {
-    // Initialize NVS (required before NVS-backed prefs)
+    // NVS must come first — prefs and wifi_mgr both need it
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase();
         nvs_flash_init();
     }
 
-    // Arduino compatibility layer (initializes Serial, SPI, Wire, etc.)
+    // Arduino compatibility layer (initialises Serial, SPI, Wire, etc.)
     initArduino();
 
     // Load persisted print parameters (slot 0 = Settings)
@@ -40,7 +47,13 @@ extern "C" void app_main(void) {
     g_print_cmd_queue    = xQueueCreate(4,  sizeof(print_cmd_t));
     g_print_status_queue = xQueueCreate(16, sizeof(print_status_t));
 
-    // Core 1: motor step generation (gptimer ISR + blocking semaphore wait)
+    // WiFi init (STA or AP mode, mDNS when connected)
+    wifi_init();
+
+    // HTTP REST server — start immediately; handlers check SD on each call
+    http_server_start();
+
+    // Core 1: motor step generation (gptimer ISR + binary semaphore)
     xTaskCreatePinnedToCore(motor_task, "motor", 4096,  NULL, 5, NULL, 1);
 
     // Core 0: print sequencing, SD, PNG decode, UV exposure
