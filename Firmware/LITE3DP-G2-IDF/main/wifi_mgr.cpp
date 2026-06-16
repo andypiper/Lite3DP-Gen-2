@@ -145,7 +145,7 @@ void wifi_init(void) {
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     esp_wifi_init(&cfg);
-    esp_wifi_set_storage(WIFI_STORAGE_RAM);
+    // esp_wifi_set_storage() removed in IDF 5.3+; RAM is already the default.
 
     esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID,  wifi_event_handler, NULL);
     esp_event_handler_register(IP_EVENT,   IP_EVENT_STA_GOT_IP, wifi_event_handler, NULL);
